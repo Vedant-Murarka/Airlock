@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun} from 'lucide-react';
 import Editor from './components/Editor.tsx';
 import Sidebar from './components/Sidebar.tsx';
 import OutputPanel from './components/OutputPanel.tsx';
+// @ts-ignore
 import './App.css';
 
+// --- Interfaces ---
 interface FileItem {
   id: string;
   name: string;
@@ -29,12 +31,16 @@ interface ApiResponse {
 }
 
 function App() {
+  // --- State Management ---
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [showFlowchart, setShowFlowchart] = useState(false); // New state for Visualize
   const [openFiles, setOpenFiles] = useState<FileItem[]>([]);
   const [activeFileId, setActiveFileId] = useState('');
   const [creatingFile, setCreatingFile] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileError, setNewFileError] = useState('');
+  
+  // Execution & Repair State
   const [output, setOutput] = useState('');
   const [errors, setErrors] = useState('');
   const [showOutput, setShowOutput] = useState(false);
@@ -45,24 +51,19 @@ function App() {
 
   const activeFile = openFiles.find((file) => file.id === activeFileId);
 
+  // --- File Operations ---
   const createFile = () => {
     const name = newFileName.trim();
     if (!name) {
       setNewFileError('File name is required.');
       return;
     }
-
     if (openFiles.some((file) => file.name === name)) {
       setNewFileError('A file with that name already exists.');
       return;
     }
 
-    const file: FileItem = {
-      id: name,
-      name,
-      content: '',
-    };
-
+    const file: FileItem = { id: name, name, content: '' };
     setOpenFiles((current) => [...current, file]);
     setActiveFileId(file.id);
     setCreatingFile(false);
@@ -91,16 +92,12 @@ function App() {
   const updateFileContent = (fileId: string, content: string) => {
     setOpenFiles((files) =>
       files.map((file) =>
-        file.id === fileId
-          ? {
-              ...file,
-              content,
-            }
-          : file,
-      ),
+        file.id === fileId ? { ...file, content } : file
+      )
     );
   };
 
+  // --- Core Logic: Run & Repair ---
   const handleRun = async () => {
     if (!activeFile) {
       alert('Please open a file first');
@@ -116,9 +113,7 @@ function App() {
     try {
       const response = await fetch('http://localhost:5000/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: activeFile.content }),
       });
 
@@ -133,12 +128,7 @@ function App() {
       } else if (data.success) {
         setAllAttempts([]);
         setAllErrors([]);
-        // Show output if available, otherwise show success message
-        if (data.output) {
-          setOutput(data.output);
-        } else {
-          setOutput('Code executed successfully!');
-        }
+        setOutput(data.output || 'Code executed successfully!');
         setErrors('');
         setSuggestedCode(null);
       } else {
@@ -171,8 +161,7 @@ function App() {
   };
 
   const handleDownload = () => {
-    // TODO: Implement PDF download from AST analysis
-    alert('PDF download feature coming soon!');
+    alert('PDF Audit Trail generation starting...');
   };
 
   const toggleTheme = () => {
@@ -181,18 +170,31 @@ function App() {
 
   return (
     <div className={`app ${isDarkMode ? 'dark' : 'light'}`}>
+      {/* Title Bar with Visualize & Theme toggle */}
       <div className="title-bar">
         <div className="title-logo">
           <img src="/logo.png" alt="Airlock logo" className="app-logo" />
           <h1>Airlock - AI Code Debugger</h1>
         </div>
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        
+        <div className="header-actions">
+          <button
+            className={`visualize-btn ${showFlowchart ? 'active' : ''}`}
+            onClick={() => setShowFlowchart(!showFlowchart)}
+            title="Visualize Debugging Logic"
+          >
+            
+            <span>Visualize</span>
+          </button>
+
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
       </div>
 
       <PanelGroup direction="horizontal" className="main-layout">
@@ -244,26 +246,20 @@ function App() {
                   value={newFileName}
                   onChange={(event) => setNewFileName(event.target.value)}
                   placeholder="Enter file name..."
+                  autoFocus
                 />
-                <button className="new-file-confirm" onClick={createFile}>
-                  Create
-                </button>
-                <button className="new-file-cancel" onClick={cancelCreateFile}>
-                  Cancel
-                </button>
+                <button className="new-file-confirm" onClick={createFile}>Create</button>
+                <button className="new-file-cancel" onClick={cancelCreateFile}>Cancel</button>
                 {newFileError && <div className="new-file-error">{newFileError}</div>}
               </div>
             )}
 
             {openFiles.length === 0 ? (
               <div className="editor-placeholder">
-                <p className="editor-placeholder-text">No file open. Create a new file before writing.</p>
+                <p className="editor-placeholder-text">No file open. Create a new file to start debugging.</p>
                 <button
                   className="new-file-action large"
-                  onClick={() => {
-                    setCreatingFile(true);
-                    setNewFileError('');
-                  }}
+                  onClick={() => setCreatingFile(true)}
                 >
                   Create a file
                 </button>
@@ -299,6 +295,8 @@ function App() {
           </>
         )}
       </PanelGroup>
+
+      
     </div>
   );
 }

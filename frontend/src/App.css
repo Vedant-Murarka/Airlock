@@ -598,3 +598,51 @@
   padding: 2px 8px;
   border-radius: 10px;
 }
+
+/* Add to App.css */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto; /* Pushes everything to the right */
+}
+
+.visualize-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: #2563eb; /* A nice blue */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.visualize-btn:hover {
+  background-color: #1d4ed8;
+}
+
+.visualize-btn.active {
+  background-color: #059669; /* Green when active */
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid #3f3f46;
+  color: #a1a1aa;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle:hover {
+  background: #27272a;
+  color: #ffffff;
+}
