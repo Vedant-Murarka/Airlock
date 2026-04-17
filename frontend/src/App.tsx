@@ -39,6 +39,8 @@ function App() {
   const [showOutput, setShowOutput] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedCode, setSuggestedCode] = useState<string | null>(null);
+  const [allErrors, setAllErrors] = useState<string[]>([]);
+  const [allAttempts, setAllAttempts] = useState<Attempt[]>([]);
 
   const activeFile = openFiles.find((file) => file.id === activeFileId);
 
@@ -121,22 +123,24 @@ function App() {
 
       const data: ApiResponse = await response.json();
 
-      if (data.success) {
+      if (data.attempts && data.attempts.length > 0) {
+        setAllAttempts(data.attempts);
+        setAllErrors(data.attempts.map((a, i) => `Attempt ${a.attempt}:\n${a.error}`));
+        setOutput('Errors were detected and fixed. See the Errors and Fix tabs.');
+        setErrors(data.attempts[0].error || data.error || 'Unknown error');
+        setSuggestedCode(data.attempts[data.attempts.length - 1].fixed_code);
+      } else if (data.success) {
+        setAllAttempts([]);
+        setAllErrors([]);
         setOutput('Code executed successfully!');
         setErrors('');
         setSuggestedCode(null);
       } else {
-        // Get the last error from attempts
-        const lastAttempt = data.attempts[data.attempts.length - 1];
-        const errorMsg = lastAttempt?.error || data.error || 'Unknown error';
-        
-        setOutput('Code has errors. A fix is suggested below.');
-        setErrors(errorMsg);
-        
-        // Set the suggested fix
-        if (data.final_code && data.final_code !== activeFile.content) {
-          setSuggestedCode(data.final_code);
-        }
+        setAllAttempts([]);
+        setAllErrors([data.error || 'Unknown error']);
+        setOutput('Code has errors. No fix could be suggested.');
+        setErrors(data.error || 'Unknown error');
+        setSuggestedCode(null);
       }
     } catch (error) {
       setOutput('Error connecting to backend');
@@ -277,6 +281,8 @@ function App() {
               <OutputPanel 
                 output={output} 
                 errors={errors} 
+                allErrors={allErrors}
+                allAttempts={allAttempts}
                 suggestedCode={suggestedCode}
                 onAccept={handleAcceptFix}
                 onReject={handleRejectFix}

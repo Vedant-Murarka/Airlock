@@ -4,14 +4,17 @@ import { Terminal, AlertCircle, CheckCircle, Check, X, Loader2 } from 'lucide-re
 interface OutputPanelProps {
   output: string;
   errors: string;
+  allErrors?: string[];
+  allAttempts?: { attempt: number; error: string; fixed_code: string; explanation: string; confidence: number }[];
   suggestedCode?: string | null;
   onAccept?: () => void;
   onReject?: () => void;
   isLoading?: boolean;
 }
 
-const OutputPanel = ({ output, errors, suggestedCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
-  const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>('output');
+const OutputPanel = ({ output, errors, allErrors = [], allAttempts = [], suggestedCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
+  // Default to Fix tab if there was a fix, else Output
+  const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>(suggestedCode ? 'suggestion' : 'output');
 
   return (
     <div className="output-panel">
@@ -57,14 +60,16 @@ const OutputPanel = ({ output, errors, suggestedCode, onAccept, onReject, isLoad
 
         {activeTab === 'errors' && !isLoading && (
           <div className="error-section">
-            {errors ? (
+            {allErrors.length > 0 ? (
               <div className="error-list">
-                <div className="error-item">
-                  <AlertCircle size={16} className="error-icon" />
-                  <div className="error-details">
-                    <div className="error-message">{errors}</div>
+                {allErrors.map((err, idx) => (
+                  <div className="error-item" key={idx}>
+                    <AlertCircle size={16} className="error-icon" />
+                    <div className="error-details">
+                      <div className="error-message">{err}</div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             ) : (
               <div className="no-errors">

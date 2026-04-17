@@ -29,15 +29,27 @@ def is_large_change(old_code, new_code):
 
 
 def is_bad_fix(old_code, new_code):
+    # If new code is too short, it's probably bad
     if len(new_code.strip()) < 3:
         return True
-
-    old_tokens = set(old_code.split())
-    new_tokens = set(new_code.split())
-
-    overlap = len(old_tokens.intersection(new_tokens))
-
-    return overlap < 1
+    
+    # If new code is essentially empty, it's bad
+    if not new_code.strip():
+        return True
+    
+    # If new code is much shorter than old code (more than 50% shorter), might be bad
+    # But allow it if it's a simple fix like adding a character
+    old_len = len(old_code.strip())
+    new_len = len(new_code.strip())
+    if new_len < old_len * 0.5 and old_len > 10:
+        return True
+    
+    # If new code is the same as old code, it's not a fix
+    if old_code.strip() == new_code.strip():
+        return True
+    
+    # Otherwise, it's probably a valid fix
+    return False
 
 
 def classify_error(stderr: str):
