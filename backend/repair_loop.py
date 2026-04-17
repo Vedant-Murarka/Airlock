@@ -171,6 +171,7 @@ def run_repair_loop(code: str):
                 return {
                     "success": True,
                     "final_code": current_code,
+                    "output": result["stdout"],
                     "attempts": attempts,
                     "static_analysis": static_issues,
                     "suggestions": suggest_improvements(current_code)

@@ -23,6 +23,7 @@ interface Attempt {
 interface ApiResponse {
   success: boolean;
   final_code: string;
+  output?: string;
   error?: string;
   attempts: Attempt[];
 }
@@ -132,7 +133,12 @@ function App() {
       } else if (data.success) {
         setAllAttempts([]);
         setAllErrors([]);
-        setOutput('Code executed successfully!');
+        // Show output if available, otherwise show success message
+        if (data.output) {
+          setOutput(data.output);
+        } else {
+          setOutput('Code executed successfully!');
+        }
         setErrors('');
         setSuggestedCode(null);
       } else {
