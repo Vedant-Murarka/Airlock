@@ -1,0 +1,101 @@
+import { useState } from 'react';
+import { Terminal, AlertCircle, CheckCircle, Check, X, Loader2 } from 'lucide-react';
+
+interface OutputPanelProps {
+  output: string;
+  errors: string;
+  suggestedCode?: string | null;
+  onAccept?: () => void;
+  onReject?: () => void;
+  isLoading?: boolean;
+}
+
+const OutputPanel = ({ output, errors, suggestedCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
+  const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>('output');
+
+  return (
+    <div className="output-panel">
+      <div className="output-tabs">
+        <button
+          className={`tab ${activeTab === 'output' ? 'active' : ''}`}
+          onClick={() => setActiveTab('output')}
+        >
+          <Terminal size={14} />
+          Output
+        </button>
+        <button
+          className={`tab ${activeTab === 'errors' ? 'active' : ''}`}
+          onClick={() => setActiveTab('errors')}
+        >
+          <AlertCircle size={14} />
+          Errors
+        </button>
+        {suggestedCode && (
+          <button
+            className={`tab ${activeTab === 'suggestion' ? 'active' : ''}`}
+            onClick={() => setActiveTab('suggestion')}
+          >
+            <CheckCircle size={14} />
+            Fix
+          </button>
+        )}
+      </div>
+
+      <div className="output-content">
+        {isLoading && (
+          <div className="loading-section">
+            <Loader2 size={24} className="spinner" />
+            <span>Analyzing code...</span>
+          </div>
+        )}
+
+        {activeTab === 'output' && !isLoading && (
+          <div className="output-section">
+            <pre className="output-text">{output || 'No output yet. Click Run to analyze your code.'}</pre>
+          </div>
+        )}
+
+        {activeTab === 'errors' && !isLoading && (
+          <div className="error-section">
+            {errors ? (
+              <div className="error-list">
+                <div className="error-item">
+                  <AlertCircle size={16} className="error-icon" />
+                  <div className="error-details">
+                    <div className="error-message">{errors}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="no-errors">
+                <CheckCircle size={20} className="success-icon" />
+                <span>No errors found</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'suggestion' && !isLoading && suggestedCode && (
+          <div className="suggestion-section">
+            <div className="suggestion-header">
+              <span>Suggested Fix</span>
+            </div>
+            <pre className="suggested-code">{suggestedCode}</pre>
+            <div className="suggestion-actions">
+              <button className="accept-btn" onClick={onAccept}>
+                <Check size={16} />
+                Accept Fix
+              </button>
+              <button className="reject-btn" onClick={onReject}>
+                <X size={16} />
+                Reject
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default OutputPanel;

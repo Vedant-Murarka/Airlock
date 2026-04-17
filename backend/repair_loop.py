@@ -1,3 +1,5 @@
+from unittest import result
+
 from sandbox import run_code_in_sandbox
 from llm import get_patch
 from static_analyzer import analyze_code
@@ -70,6 +72,12 @@ def run_repair_loop(code: str):
         print(f"\n--- Attempt {i} ---")
 
         result = run_code_in_sandbox(current_code)
+        print("=== SANDBOX RESULT ===")
+        print("STDOUT:", result["stdout"])
+        print("STDERR:", result["stderr"])
+        print("EXIT CODE:", result["exit_code"])
+        print("SUCCESS:", result["success"])
+        print("======================")
         stderr = result["stderr"]
 
         print("STDERR:", stderr)
