@@ -7,14 +7,59 @@ interface OutputPanelProps {
   allErrors?: string[];
   allAttempts?: { attempt: number; error: string; fixed_code: string; explanation: string; confidence: number }[];
   suggestedCode?: string | null;
+  originalCode?: string | null;
   onAccept?: () => void;
   onReject?: () => void;
   isLoading?: boolean;
 }
 
-const OutputPanel = ({ output, errors, allErrors = [], allAttempts = [], suggestedCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
+// Function to compare lines and find changed ones
+const getChangedLines = (original: string, fixed: string): Set<number> => {
+  const originalLines = original.split('\n');
+  const fixedLines = fixed.split('\n');
+  const changedLines = new Set<number>();
+  
+  const maxLines = Math.max(originalLines.length, fixedLines.length);
+  
+  for (let i = 0; i < maxLines; i++) {
+    const origLine = originalLines[i] || '';
+    const fixedLine = fixedLines[i] || '';
+    
+    if (origLine.trim() !== fixedLine.trim()) {
+      changedLines.add(i + 1); // 1-indexed line numbers
+    }
+  }
+  
+  return changedLines;
+};
+
+const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
   // Default to Fix tab if there was a fix, else Output
   const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>(suggestedCode ? 'suggestion' : 'output');
+
+  // Get changed lines if we have both original and suggested code
+  const changedLines = (originalCode && suggestedCode) 
+    ? getChangedLines(originalCode, suggestedCode) 
+    : new Set<number>();
+
+  // Render code with line numbers and highlighting
+  const renderCodeWithHighlights = (code: string) => {
+    const lines = code.split('\n');
+    return lines.map((line, index) => {
+      const lineNumber = index + 1;
+      const isChanged = changedLines.has(lineNumber);
+      
+      return (
+        <div 
+          key={index} 
+          className={`code-line ${isChanged ? 'changed' : ''}`}
+        >
+          <span className="line-number">{lineNumber}</span>
+          <span className="line-content">{line || ' '}</span>
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="output-panel">
@@ -84,8 +129,13 @@ const OutputPanel = ({ output, errors, allErrors = [], allAttempts = [], suggest
           <div className="suggestion-section">
             <div className="suggestion-header">
               <span>Suggested Fix</span>
+              {changedLines.size > 0 && (
+                <span className="changed-count">({changedLines.size} line(s) changed)</span>
+              )}
             </div>
-            <pre className="suggested-code">{suggestedCode}</pre>
+            <div className="suggested-code-container">
+              {renderCodeWithHighlights(suggestedCode)}
+            </div>
             <div className="suggestion-actions">
               <button className="accept-btn" onClick={onAccept}>
                 <Check size={16} />

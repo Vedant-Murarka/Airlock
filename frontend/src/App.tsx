@@ -126,7 +126,7 @@ function App() {
 
       if (data.attempts && data.attempts.length > 0) {
         setAllAttempts(data.attempts);
-        setAllErrors(data.attempts.map((a, i) => `Attempt ${a.attempt}:\n${a.error}`));
+        setAllErrors(data.attempts.map((a) => `Attempt ${a.attempt}:\n${a.error}`));
         setOutput('Errors were detected and fixed. See the Errors and Fix tabs.');
         setErrors(data.attempts[0].error || data.error || 'Unknown error');
         setSuggestedCode(data.attempts[data.attempts.length - 1].fixed_code);
@@ -290,6 +290,7 @@ function App() {
                 allErrors={allErrors}
                 allAttempts={allAttempts}
                 suggestedCode={suggestedCode}
+                originalCode={activeFile?.content || null}
                 onAccept={handleAcceptFix}
                 onReject={handleRejectFix}
                 isLoading={isLoading}

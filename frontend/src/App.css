@@ -543,3 +543,58 @@
 .reject-btn:hover {
   background-color: var(--vscode-bg-hover);
 }
+
+/* Code Line Highlighting */
+.suggested-code-container {
+  flex: 1;
+  overflow: auto;
+  background-color: var(--vscode-bg-primary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 0;
+}
+
+.code-line {
+  display: flex;
+  padding: 1px 8px;
+  white-space: pre;
+}
+
+.code-line.changed {
+  background-color: rgba(255, 215, 0, 0.15);
+  border-left: 3px solid #ffd700;
+}
+
+.line-number {
+  color: var(--vscode-text-secondary);
+  min-width: 40px;
+  text-align: right;
+  padding-right: 12px;
+  user-select: none;
+  opacity: 0.6;
+}
+
+.line-content {
+  color: var(--vscode-text-primary);
+}
+
+.suggestion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: var(--vscode-bg-tertiary);
+  border-bottom: 1px solid var(--vscode-border);
+  font-weight: 600;
+  color: var(--vscode-success);
+}
+
+.changed-count {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--vscode-text-secondary);
+  background-color: rgba(255, 215, 0, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
