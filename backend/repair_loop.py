@@ -1,5 +1,4 @@
-from unittest import result
-
+import ast
 from sandbox import run_code_in_sandbox
 from llm import get_patch
 from static_analyzer import analyze_code
@@ -8,6 +7,34 @@ from optimizer import suggest_improvements
 
 MAX_ATTEMPTS = 5
 
+COMMON_TYPOS = {
+    "pritn": "print",
+    "improt": "import",
+    "reutrn": "return",
+}
+
+
+# =========================
+# 🔧 PREPROCESSING
+# =========================
+
+def quick_fix_typos(code: str):
+    for wrong, correct in COMMON_TYPOS.items():
+        code = code.replace(wrong, correct)
+    return code
+
+
+def detect_syntax_errors(code: str):
+    try:
+        ast.parse(code)
+        return None
+    except SyntaxError as e:
+        return str(e)
+
+
+# =========================
+# 🛡️ SAFETY FILTERS
+# =========================
 
 def is_same_code(a, b):
     return a.strip() == b.strip()
@@ -29,54 +56,85 @@ def is_large_change(old_code, new_code):
 
 
 def is_bad_fix(old_code, new_code):
-    # If new code is too short, it's probably bad
     if len(new_code.strip()) < 3:
         return True
-    
-    # If new code is essentially empty, it's bad
+
     if not new_code.strip():
         return True
-    
-    # If new code is much shorter than old code (more than 50% shorter), might be bad
-    # But allow it if it's a simple fix like adding a character
+
     old_len = len(old_code.strip())
     new_len = len(new_code.strip())
+
     if new_len < old_len * 0.5 and old_len > 10:
         return True
-    
-    # If new code is the same as old code, it's not a fix
+
     if old_code.strip() == new_code.strip():
         return True
-    
-    # Otherwise, it's probably a valid fix
+
     return False
 
+
+# =========================
+# 🧠 ERROR CLASSIFIER
+# =========================
 
 def classify_error(stderr: str):
     s = stderr.lower()
 
+    if "syntaxerror" in s or "invalid syntax" in s:
+        return "syntax"
+    if "indentationerror" in s:
+        return "syntax"
     if "zerodivisionerror" in s:
         return "math"
     if "modulenotfounderror" in s:
         return "dependency"
     if "nameerror" in s:
         return "undefined_variable"
+    if "attributeerror" in s:
+        return "attribute"
     if "typeerror" in s:
         return "type"
     if "indexerror" in s:
         return "index"
-    if "syntaxerror" in s:
-        return "syntax"
 
     return "unknown"
 
 
+# =========================
+# 🔁 MAIN LOOP
+# =========================
+
 def run_repair_loop(code: str):
     attempts = []
+    original_code = code
+
+    # 🔹 Step 0: Typo Fix
+    code = quick_fix_typos(code)
+
+    # 🔹 Step 1: Pre-execution Syntax Fix
+    syntax_error = detect_syntax_errors(code)
+    if syntax_error:
+        print("⚠️ Pre-execution syntax error detected")
+
+        patch = get_patch(code, syntax_error, "syntax")
+        fixed_code = patch["patched_code"]
+        
+        # Add pre-execution fix to attempts so frontend can display it
+        attempts.append({
+            "attempt": 0,
+            "error": syntax_error,
+            "fixed_code": fixed_code,
+            "explanation": patch["explanation"],
+            "confidence": patch.get("confidence", 0)
+        })
+        
+        code = fixed_code
+
     current_code = code
     seen_fixes = set()
 
-    # 🔍 Layer 1: Static Analysis
+    # 🔍 Static Analysis
     static_issues = analyze_code(code)
 
     for i in range(1, MAX_ATTEMPTS + 1):
@@ -84,18 +142,19 @@ def run_repair_loop(code: str):
         print(f"\n--- Attempt {i} ---")
 
         result = run_code_in_sandbox(current_code)
+
         print("=== SANDBOX RESULT ===")
         print("STDOUT:", result["stdout"])
         print("STDERR:", result["stderr"])
         print("EXIT CODE:", result["exit_code"])
         print("SUCCESS:", result["success"])
         print("======================")
+
         stderr = result["stderr"]
 
-        print("STDERR:", stderr)
         print("CURRENT CODE:\n", current_code)
 
-        # 🌍 Layer 2: Environment Issues
+        # 🌍 Environment Issues
         env_issues = detect_environment_issues(stderr)
         if env_issues:
             return {
@@ -106,7 +165,7 @@ def run_repair_loop(code: str):
                 "static_analysis": static_issues
             }
 
-        # ✅ SUCCESS
+        # ✅ Success
         if result["success"] and stderr.strip() == "":
             if not is_lazy_fix(current_code):
                 return {
@@ -117,11 +176,11 @@ def run_repair_loop(code: str):
                     "suggestions": suggest_improvements(current_code)
                 }
 
-        # 🧠 Classify error
+        # 🧠 Classify Error
         error_type = classify_error(stderr)
         print(f"🧠 Error Type: {error_type}")
 
-        # 🔥 Ask LLM
+        # 🔧 LLM Fix
         patch = get_patch(current_code, stderr, error_type)
         new_code = patch["patched_code"]
         confidence = patch.get("confidence", 0)
@@ -129,7 +188,7 @@ def run_repair_loop(code: str):
         print(f"🔧 Proposed fix (confidence {confidence}):")
         print(patch["explanation"])
 
-        # ❌ Reject useless fixes
+        # ❌ Reject bad fixes
         if is_same_code(current_code, new_code):
             print("⚠️ No change — skipping")
             continue
@@ -142,7 +201,7 @@ def run_repair_loop(code: str):
             print("⚠️ Large rewrite detected — rejecting")
             continue
 
-        # ❌ Prevent repeated fixes
+        # ❌ Prevent repeats
         fix_signature = (error_type, new_code.strip())
         if fix_signature in seen_fixes:
             print("⚠️ Repeated fix — skipping")
@@ -150,13 +209,13 @@ def run_repair_loop(code: str):
 
         seen_fixes.add(fix_signature)
 
-        # ✅ Confidence-based acceptance
+        # ✅ Accept fix
         if confidence >= 8:
             print("✅ High confidence fix accepted")
-            current_code = new_code
         else:
             print("⚠️ Low confidence — still trying")
-            current_code = new_code
+
+        current_code = new_code
 
         attempts.append({
             "attempt": i,
