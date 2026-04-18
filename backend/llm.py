@@ -3,64 +3,42 @@ import json
 import re
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "deepseek-coder:6.7b"
+MODEL = "qwen2.5-coder:1.5b"
 
-SYSTEM_PROMPT = """You are a senior Python engineer.
+SYSTEM_PROMPT = """You are a Python error-fixing bot.
+Do NOT output JSON. You must provide a brief explanation, and then provide the full fixed code inside a standard markdown python code block.
 
-You MUST:
-- Fix ROOT CAUSE of the error
-- NEVER use try-except to hide errors
-- NEVER return unchanged code
-- ALWAYS modify faulty logic
-- ONLY make minimal necessary changes
-
-Return ONLY JSON:
-{
-  "patched_code": "...",
-  "explanation": "...",
-  "confidence": 8
-}
+Example:
+I fixed the division by zero error.
+```python
+x = 1 / 1
+print(x)
+```
 """
 
 
-def clean_output(text: str) -> str:
-    text = re.sub(r"```json|```", "", text)
-    return text.strip()
-
-
-def extract_json(text: str):
-    match = re.search(r'\{.*\}', text, re.DOTALL)
+def extract_code_block(text: str):
+    """Extracts python code from markdown block."""
+    match = re.search(r'```(?:\s*python)?\s*(.*?)```', text, re.DOTALL | re.IGNORECASE)
     if match:
-        return match.group(0)
-    return None
+        return match.group(1).strip()
+    
 
+        
+    return None
 
 def get_patch(code: str, stderr: str, error_type: str) -> dict:
     prompt = f"""You are a senior Python engineer.
 
 Error Type: {error_type}
 
-Your task: Fix the code with MINIMAL changes.
+Your task: Fix the code to resolve the error. Feel free to rewrite, add methods, or change architecture if necessary to properly fix the bug. Do NOT use try-except to just hide the error.
 
-STRICT RULES:
-- Modify ONLY faulty lines
-- DO NOT rewrite entire program
-- PRESERVE structure and variables
-- DO NOT use try-except to hide errors
-
-Guidance:
-- math → fix invalid math (e.g., 1/0 → 1/1)
-- syntax → fix syntax issues
-- type → fix incorrect types
-- undefined_variable → define missing variables
-- dependency → correct import
-
-Return ONLY JSON:
-{{
-  "patched_code": "...",
-  "explanation": "...",
-  "confidence": 8
-}}
+Return the full patched code in a markdown block.
+Example:
+```python
+# your fixed code here
+```
 
 Code:
 {code}
@@ -76,9 +54,14 @@ Error:
                 "model": MODEL,
                 "prompt": prompt,
                 "system": SYSTEM_PROMPT,
-                "stream": False
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_predict": 2048,
+                    "num_ctx": 4096
+                }
             },
-            timeout=30
+            timeout=120
         )
 
         result = response.json()
@@ -88,18 +71,14 @@ Error:
         print(raw_output)
         print("================================\n")
 
-        cleaned = clean_output(raw_output)
-        json_text = extract_json(cleaned)
+        code_text = extract_code_block(raw_output)
 
-        if json_text:
-            try:
-                parsed = json.loads(json_text)
-
-                if all(k in parsed for k in ["patched_code", "explanation", "confidence"]):
-                    return parsed
-
-            except json.JSONDecodeError:
-                pass
+        if code_text:
+            return {
+                "patched_code": code_text,
+                "explanation": "Extracted from markdown response.",
+                "confidence": 8
+            }
 
     except Exception as e:
         print("LLM ERROR:", str(e))

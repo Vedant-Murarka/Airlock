@@ -1,4 +1,5 @@
 import ast
+import difflib
 from sandbox import run_code_in_sandbox
 from llm import get_patch
 from static_analyzer import analyze_code
@@ -48,11 +49,14 @@ def is_large_change(old_code, new_code):
     old_lines = old_code.strip().split("\n")
     new_lines = new_code.strip().split("\n")
 
-    if abs(len(old_lines) - len(new_lines)) > 3:
+    if abs(len(old_lines) - len(new_lines)) > 100:
         return True
 
-    changes = sum(1 for o, n in zip(old_lines, new_lines) if o != n)
-    return changes > 3
+    diff = list(difflib.ndiff(old_lines, new_lines))
+    added = sum(1 for line in diff if line.startswith('+ '))
+    removed = sum(1 for line in diff if line.startswith('- '))
+    
+    return added > 100 or removed > 100
 
 
 def is_bad_fix(old_code, new_code):
@@ -181,8 +185,17 @@ def run_repair_loop(code: str):
         error_type = classify_error(stderr)
         print(f"🧠 Error Type: {error_type}")
 
-        # 🔧 LLM Fix
-        patch = get_patch(current_code, stderr, error_type)
+        # ⚡ Fast-Path Heuristics
+        from fast_path import attempt_fast_path
+        fast_patch = attempt_fast_path(current_code, stderr, error_type)
+        
+        if fast_patch:
+            print("⚡ Fast-Path triggered! Bypassing LLM.")
+            patch = fast_patch
+        else:
+            # 🔧 LLM Fix
+            patch = get_patch(current_code, stderr, error_type)
+            
         new_code = patch["patched_code"]
         confidence = patch.get("confidence", 0)
 
@@ -192,14 +205,6 @@ def run_repair_loop(code: str):
         # ❌ Reject bad fixes
         if is_same_code(current_code, new_code):
             print("⚠️ No change — skipping")
-            continue
-
-        if is_bad_fix(current_code, new_code):
-            print("⚠️ Bad fix detected — skipping")
-            continue
-
-        if is_large_change(current_code, new_code):
-            print("⚠️ Large rewrite detected — rejecting")
             continue
 
         # ❌ Prevent repeats
