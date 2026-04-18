@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Play, AlertTriangle, Settings, Download, Layout, X } from 'lucide-react';
 import Editor from './components/Editor.tsx';
 import Sidebar from './components/Sidebar.tsx';
 import OutputPanel from './components/OutputPanel.tsx';
@@ -8,10 +8,13 @@ import OutputPanel from './components/OutputPanel.tsx';
 import './App.css';
 
 // --- Interfaces ---
-interface FileItem {
+interface FileSystemItem {
   id: string;
   name: string;
-  content: string;
+  type: 'file' | 'folder';
+  content?: string;
+  parentId: string | null;
+  isOpen?: boolean;
 }
 
 interface Attempt {
@@ -31,81 +34,122 @@ interface ApiResponse {
 }
 
 function App() {
-  // --- State Management ---
+  // --- UI & Theme State ---
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showFlowchart, setShowFlowchart] = useState(false);
-  const [openFiles, setOpenFiles] = useState<FileItem[]>([]);
-  const [activeFileId, setActiveFileId] = useState('');
-  const [creatingFile, setCreatingFile] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
-  const [newFileError, setNewFileError] = useState('');
+  const [showOutput, setShowOutput] = useState(false);
   
-  // Execution & Repair State
+  // --- File System & Tab State ---
+  const [fileSystem, setFileSystem] = useState<FileSystemItem[]>([]);
+  const [openFileIds, setOpenFileIds] = useState<string[]>([]); // Tracks open tabs
+  const [activeFileId, setActiveFileId] = useState('');
+  
+  // --- Execution & Repair State ---
   const [output, setOutput] = useState('');
   const [errors, setErrors] = useState('');
-  const [showOutput, setShowOutput] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedCode, setSuggestedCode] = useState<string | null>(null);
   const [allErrors, setAllErrors] = useState<string[]>([]);
   const [allAttempts, setAllAttempts] = useState<Attempt[]>([]);
 
-  const activeFile = openFiles.find((file) => file.id === activeFileId);
+  // Derived State: Current Active File Object
+  const activeFile = fileSystem.find((f) => f.id === activeFileId && f.type === 'file');
 
-  // --- File Operations ---
-  const createFile = () => {
-    const name = newFileName.trim();
-    if (!name) {
-      setNewFileError('File name is required.');
-      return;
-    }
-    if (openFiles.some((file) => file.name === name)) {
-      setNewFileError('A file with that name already exists.');
-      return;
-    }
-
-    const file: FileItem = { id: name, name, content: '' };
-    setOpenFiles((current) => [...current, file]);
-    setActiveFileId(file.id);
-    setCreatingFile(false);
-    setNewFileName('');
-    setNewFileError('');
-  };
-
-  const cancelCreateFile = () => {
-    setCreatingFile(false);
-    setNewFileName('');
-    setNewFileError('');
-  };
-
-  const closeFile = (fileId: string) => {
-    setOpenFiles((files) => {
-      const nextFiles = files.filter((file) => file.id !== fileId);
-      if (nextFiles.length === 0) {
-        setActiveFileId('');
-      } else if (fileId === activeFileId) {
-        setActiveFileId(nextFiles[nextFiles.length - 1].id);
+  // --- Persistence ---
+  useEffect(() => {
+    const savedFs = localStorage.getItem('airlock_fs');
+    if (savedFs) {
+      try {
+        setFileSystem(JSON.parse(savedFs));
+      } catch (e) {
+        console.error("Failed to load file system", e);
       }
-      return nextFiles;
-    });
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('airlock_fs', JSON.stringify(fileSystem));
+  }, [fileSystem]);
+
+  // --- Tab Management Logic ---
+  const handleFileSelect = (id: string) => {
+    setActiveFileId(id);
+    if (!openFileIds.includes(id)) {
+      setOpenFileIds((prev) => [...prev, id]);
+    }
+  };
+
+  const closeTab = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const filteredTabs = openFileIds.filter(tabId => tabId !== id);
+    setOpenFileIds(filteredTabs);
+    
+    // Logic to handle active tab focus after closing
+    if (id === activeFileId) {
+      if (filteredTabs.length > 0) {
+        setActiveFileId(filteredTabs[filteredTabs.length - 1]);
+      } else {
+        setActiveFileId('');
+      }
+    }
+  };
+
+  // --- File System Operations ---
+  const addItem = (name: string, type: 'file' | 'folder', parentId: string | null = null) => {
+    const newItem: FileSystemItem = {
+      id: `${Date.now()}`,
+      name: name.trim(),
+      type,
+      content: type === 'file' ? '# New Python file\n' : undefined,
+      parentId,
+      isOpen: true
+    };
+
+    setFileSystem((prev) => [...prev, newItem]);
+    if (type === 'file') {
+      handleFileSelect(newItem.id);
+    }
+  };
+
+  const deleteItem = (id: string) => {
+    const idsToDelete = new Set([id]);
+    const findChildren = (pid: string) => {
+      fileSystem.forEach(item => {
+        if (item.parentId === pid) {
+          idsToDelete.add(item.id);
+          if (item.type === 'folder') findChildren(item.id);
+        }
+      });
+    };
+    findChildren(id);
+
+    setFileSystem((prev) => prev.filter(item => !idsToDelete.has(item.id)));
+    // Clean up closed tabs
+    setOpenFileIds((prev) => prev.filter(tabId => !idsToDelete.has(tabId)));
+    if (idsToDelete.has(activeFileId)) setActiveFileId('');
   };
 
   const updateFileContent = (fileId: string, content: string) => {
-    setOpenFiles((files) =>
-      files.map((file) =>
-        file.id === fileId ? { ...file, content } : file
-      )
+    setFileSystem((prev) =>
+      prev.map((item) => (item.id === fileId ? { ...item, content } : item))
     );
   };
 
-  // --- Core Logic: Run & Repair ---
+  const toggleFolder = (id: string) => {
+    setFileSystem(prev => prev.map(item => 
+      item.id === id ? { ...item, isOpen: !item.isOpen } : item
+    ));
+  };
+
+  // --- Core Execution Logic ---
   const handleRun = async () => {
     if (!activeFile) {
-      alert('Please open a file first');
+      alert('Please select an active file tab to analyze.');
       return;
     }
 
     setIsLoading(true);
-    setOutput('Running analysis...');
+    setOutput('Mentor is analyzing your logic...');
     setErrors('');
     setSuggestedCode(null);
     setShowOutput(true);
@@ -121,25 +165,18 @@ function App() {
 
       if (data.attempts && data.attempts.length > 0) {
         setAllAttempts(data.attempts);
-        setAllErrors(data.attempts.map((a) => `Attempt ${a.attempt}:\n${a.error}`));
-        setOutput('Errors were detected and fixed. See the Errors and Fix tabs.');
-        setErrors(data.attempts[0].error || data.error || 'Unknown error');
+        setAllErrors(data.attempts.map((a) => `Attempt ${a.attempt}: ${a.error}`));
+        setOutput('Bugs were detected and fixed. Check the "Fix" tab.');
+        setErrors(data.attempts[data.attempts.length - 1].error || 'Error detected');
         setSuggestedCode(data.attempts[data.attempts.length - 1].fixed_code);
-      } else if (data.success) {
-        setAllAttempts([]);
-        setAllErrors([]);
-        setOutput(data.output || 'Code executed successfully!');
+      } else {
+        setOutput(data.output || 'Execution successful! No errors found.');
         setErrors('');
         setSuggestedCode(null);
-      } else {
         setAllAttempts([]);
-        setAllErrors([data.error || 'Unknown error']);
-        setOutput('Code has errors. No fix could be suggested.');
-        setErrors(data.error || 'Unknown error');
-        setSuggestedCode(null);
       }
     } catch (error) {
-      setOutput('Error connecting to backend');
+      setOutput('Error: Could not connect to the analysis backend.');
       setErrors(String(error));
     } finally {
       setIsLoading(false);
@@ -150,159 +187,130 @@ function App() {
     if (suggestedCode && activeFileId) {
       updateFileContent(activeFileId, suggestedCode);
       setSuggestedCode(null);
-      setOutput('Fix applied! Click Run to test again.');
+      setOutput('Fix applied successfully!');
       setErrors('');
     }
   };
 
-  const handleRejectFix = () => {
-    setSuggestedCode(null);
-    setOutput('Fix rejected. Original code preserved.');
-  };
+  const handleRejectFix = () => setSuggestedCode(null);
 
-  const handleDownload = () => {
-    alert('PDF Audit Trail generation starting...');
-  };
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
     <div className={`app ${isDarkMode ? 'dark' : 'light'}`}>
+      {/* 1. Header Area */}
       <div className="title-bar">
         <div className="title-logo">
-          <img src="/logo.png" alt="Airlock logo" className="app-logo" />
-          <h1>Airlock - AI Code Debugger</h1>
+          <img src="/logo.png" alt="logo" className="app-logo" />
+          <h1>Airlock</h1>
+        </div>
+
+        <div className="center-actions">
+          <button className="tool-btn run-main" onClick={handleRun} disabled={isLoading}>
+            <Play size={14} fill={isLoading ? "gray" : "#4ade80"} /> 
+            <span>{isLoading ? '...' : 'Run'}</span>
+          </button>
+          <button className="tool-btn" onClick={() => setShowOutput(true)}>
+            <AlertTriangle size={14} /> <span>Errors</span>
+          </button>
+          <button 
+            className={`tool-btn ${showFlowchart ? 'active' : ''}`}
+            onClick={() => setShowFlowchart(!showFlowchart)}
+          >
+            <Layout size={14} /> <span>Visualize</span>
+          </button>
         </div>
         
         <div className="header-actions">
-          <button
-            className={`visualize-btn ${showFlowchart ? 'active' : ''}`}
-            onClick={() => setShowFlowchart(!showFlowchart)}
-            title="Visualize Debugging Logic"
-          >
-            <span>Visualize</span>
-          </button>
-
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          <button className="tool-btn icon-only" title="Settings"><Settings size={14} /></button>
+          <button className="tool-btn icon-only" title="Download"><Download size={14} /></button>
+          <div className="divider-v" />
+          <button className="theme-toggle" onClick={toggleTheme}>
+            {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
           </button>
         </div>
       </div>
 
+      {/* 2. Main Layout Area */}
       <PanelGroup direction="horizontal" className="main-layout">
-        {/* Left Sidebar */}
-        <Panel defaultSize={10} minSize={8} maxSize={18}>
+        <Panel defaultSize={18} minSize={12} maxSize={30}>
           <Sidebar 
-            onRun={handleRun} 
-            onDownload={handleDownload} 
-            // This allows the sidebar to toggle the error panel open
-            onShowErrors={() => setShowOutput(true)} 
+            items={fileSystem} 
+            activeId={activeFileId}
+            onSelect={handleFileSelect} // Pass handleFileSelect to open tabs
+            onAdd={addItem}
+            onDelete={deleteItem}
+            onToggleFolder={toggleFolder}
           />
         </Panel>
 
         <PanelResizeHandle className="resize-handle" />
 
-        {/* Main Editor Area */}
-        <Panel defaultSize={70} minSize={40}>
+        <Panel defaultSize={82}>
           <div className="editor-panel">
-            <div className="tab-bar">
-              {openFiles.map((file) => (
-                <button
-                  key={file.id}
-                  className={`file-tab ${file.id === activeFileId ? 'active' : ''}`}
-                  onClick={() => setActiveFileId(file.id)}
-                >
-                  <span>{file.name}</span>
-                  <span
-                    className="close-tab"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      closeFile(file.id);
-                    }}
+            {/* 3. VS Code-style Tabs Bar */}
+            <div className="tabs-container">
+              {openFileIds.map(id => {
+                const file = fileSystem.find(f => f.id === id);
+                if (!file) return null;
+                return (
+                  <div 
+                    key={id} 
+                    className={`tab-item ${activeFileId === id ? 'active' : ''}`}
+                    onClick={() => setActiveFileId(id)}
                   >
-                    ×
-                  </span>
-                </button>
-              ))}
-
-              <button
-                className="new-file-action"
-                onClick={() => {
-                  setCreatingFile(true);
-                  setNewFileError('');
-                }}
-              >
-                + New File
-              </button>
+                    <span className="tab-name">{file.name}</span>
+                    <X 
+                      size={14} 
+                      className="tab-close" 
+                      onClick={(e) => closeTab(e, id)} 
+                    />
+                  </div>
+                );
+              })}
             </div>
 
-            {creatingFile && (
-              <div className="new-file-row">
-                <input
-                  className="new-file-input"
-                  value={newFileName}
-                  onChange={(event) => setNewFileName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      createFile();
-                    }
-                  }}
-                  placeholder="Enter file name..."
-                  autoFocus
-                />
-                <button className="new-file-confirm" onClick={createFile}>Create</button>
-                <button className="new-file-cancel" onClick={cancelCreateFile}>Cancel</button>
-                {newFileError && <div className="new-file-error">{newFileError}</div>}
-              </div>
-            )}
-
-            {openFiles.length === 0 ? (
-              <div className="editor-placeholder">
-                <p className="editor-placeholder-text">No file open. Create a new file to start debugging.</p>
-                <button
-                  className="new-file-action large"
-                  onClick={() => setCreatingFile(true)}
-                >
-                  Create a file
-                </button>
-              </div>
-            ) : (
-              <div className="editor-container">
-                <Editor
-                  value={activeFile?.content ?? ''}
-                  onChange={(value: string | undefined) => updateFileContent(activeFileId, value || '')}
-                  theme={isDarkMode ? 'vs-dark' : 'light'}
-                />
-              </div>
-            )}
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={70}>
+                <div className="editor-container">
+                  {activeFile ? (
+                    <Editor
+                      value={activeFile.content ?? ''}
+                      onChange={(val: string | undefined) => updateFileContent(activeFileId, val || '')}
+                      theme={isDarkMode ? 'vs-dark' : 'light'}
+                    />
+                  ) : (
+                    <div className="editor-placeholder">
+                      <div className="placeholder-content">
+                        <p>Select a file to begin debugging</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Panel>
+              
+              {showOutput && (
+                <>
+                  <PanelResizeHandle className="resize-handle-h" />
+                  <Panel defaultSize={30}>
+                    <OutputPanel 
+                      output={output} 
+                      errors={errors}
+                      allErrors={allErrors}
+                      allAttempts={allAttempts}
+                      suggestedCode={suggestedCode}
+                      originalCode={activeFile?.content || null}
+                      onAccept={handleAcceptFix}
+                      onReject={handleRejectFix}
+                      onClose={() => setShowOutput(false)}
+                      isLoading={isLoading}
+                    />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
           </div>
         </Panel>
-
-        {showOutput && (
-          <>
-            <PanelResizeHandle className="resize-handle" />
-            <Panel defaultSize={30} minSize={20}>
-              <OutputPanel 
-                output={output} 
-                errors={errors} 
-                allErrors={allErrors}
-                allAttempts={allAttempts}
-                suggestedCode={suggestedCode}
-                originalCode={activeFile?.content || null}
-                onAccept={handleAcceptFix}
-                onReject={handleRejectFix}
-                isLoading={isLoading}
-                onClose={() => setShowOutput(false)} 
-              />
-            </Panel>
-          </>
-        )}
       </PanelGroup>
     </div>
   );

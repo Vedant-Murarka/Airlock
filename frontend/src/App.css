@@ -44,15 +44,14 @@
 }
 
 .title-bar {
-  height: 45px;
+  height: 48px;
   background-color: var(--vscode-bg-secondary);
   border-bottom: 1px solid var(--vscode-border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-between; /* Keeps logo left, actions right */
   padding: 0 16px;
-  -webkit-app-region: drag;
-  user-select: none;
+  position: relative;
 }
 
 .title-logo {
@@ -250,14 +249,78 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100% - 36px);
-  gap: 16px;
+  height: 100%;
   color: var(--vscode-text-secondary);
+  background-color: var(--vscode-bg-primary);
 }
 
 .editor-placeholder-text {
   font-size: 14px;
   text-align: center;
+}
+
+.placeholder-content {
+  text-align: center;
+}
+
+/* Tabs Container */
+.tabs-container {
+  display: flex;
+  background-color: var(--vscode-bg-secondary);
+  height: 35px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.tabs-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  min-width: 120px;
+  max-width: 200px;
+  background-color: var(--vscode-bg-tertiary);
+  border-right: 1px solid var(--vscode-border);
+  color: var(--vscode-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.tab-item:hover {
+  background-color: var(--vscode-bg-hover);
+}
+
+.tab-item.active {
+  background-color: var(--vscode-bg-primary);
+  color: var(--vscode-text-primary);
+  border-top: 1px solid var(--vscode-accent);
+}
+
+.tab-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tab-close {
+  opacity: 0;
+  border-radius: 3px;
+  padding: 2px;
+}
+
+.tab-item:hover .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background-color: var(--vscode-bg-hover);
 }
 
 .close-tab:hover {
@@ -470,7 +533,12 @@
   }
 
   .sidebar {
-    min-width: 44px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--vscode-bg-secondary);
+    border-right: 1px solid var(--vscode-border);
+    user-select: none;
   }
 
   .output-tabs {
@@ -639,6 +707,180 @@
   align-items: center;
   gap: 12px;
   margin-left: auto; /* Pushes everything to the right */
+}
+
+.sidebar-header {
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  color: var(--vscode-text-secondary);
+}
+
+.explorer-label {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.header-tools {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+
+.icon-btn:hover {
+  background-color: var(--vscode-bg-hover);
+  color: var(--vscode-text-primary);
+}
+
+.workspace-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--vscode-text-primary);
+  border-top: 1px solid var(--vscode-border);
+}
+
+.center-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--vscode-bg-primary);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-border);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tool-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.tool-btn:hover {
+  background: var(--vscode-bg-hover);
+  color: var(--vscode-text-primary);
+}
+
+.tool-btn.run-main {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.tool-btn.run-main:hover {
+  background: rgba(74, 222, 128, 0.2);
+}
+
+.tool-btn.active {
+  background: var(--vscode-accent);
+  color: white;
+}
+
+.divider-v {
+  width: 1px;
+  height: 20px;
+  background: var(--vscode-border);
+  margin: 0 8px;
+}
+
+/* Remove side-padding from tree if it looks cramped */
+.tree-container {
+  padding-top: 4px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--vscode-text-secondary);
+  transition: background 0.1s;
+}
+
+.tree-item:hover {
+  background-color: var(--vscode-bg-hover);
+}
+
+.tree-item.active {
+  background-color: var(--vscode-bg-tertiary);
+  color: var(--vscode-text-primary);
+}
+
+.item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.item-name {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.file-icon { color: #519aba; }
+.folder-icon { color: #dcb67a; }
+
+.item-actions {
+  display: flex;
+  padding-right: 8px;
+  opacity: 0;
+}
+
+.tree-item:hover .item-actions {
+  opacity: 1;
+}
+
+.delete-action:hover {
+  color: var(--vscode-error);
+}
+
+.naming-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  background-color: var(--vscode-bg-tertiary);
+}
+
+.naming-input {
+  background: transparent;
+  border: 1px solid var(--vscode-accent);
+  color: white;
+  font-size: 12px;
+  outline: none;
+  width: 80%;
+  padding: 0 4px;
 }
 
 .visualize-btn {
