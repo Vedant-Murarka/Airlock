@@ -11,6 +11,9 @@ interface OutputPanelProps {
   onAccept?: () => void;
   onReject?: () => void;
   isLoading?: boolean;
+  loadingStatus?: string;
+  optimization?: {code: string, explanation: string} | null;
+  isOptimizing?: boolean;
 }
 
 // Function to compare lines and find changed ones
@@ -33,9 +36,9 @@ const getChangedLines = (original: string, fixed: string): Set<number> => {
   return changedLines;
 };
 
-const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
+const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAccept, onReject, isLoading, loadingStatus, optimization, isOptimizing }: OutputPanelProps) => {
   // Default to Fix tab if there was a fix, else Output
-  const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>(suggestedCode ? 'suggestion' : 'output');
+  const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion' | 'optimization'>(suggestedCode ? 'suggestion' : 'output');
 
   // Get changed lines if we have both original and suggested code
   const changedLines = (originalCode && suggestedCode) 
@@ -87,13 +90,20 @@ const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAc
             Fix
           </button>
         )}
+        <button
+          className={`tab ${activeTab === 'optimization' ? 'active' : ''}`}
+          onClick={() => setActiveTab('optimization')}
+        >
+          {isOptimizing ? <Loader2 size={14} className="spinner" /> : <Terminal size={14} />}
+          Optimization
+        </button>
       </div>
 
       <div className="output-content">
         {isLoading && (
-          <div className="loading-section">
-            <Loader2 size={24} className="spinner" />
-            <span>Analyzing code...</span>
+          <div className="loading-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem', color: '#a0a0a0' }}>
+            <Loader2 size={32} className="spinner" style={{ animation: 'spin 2s linear infinite' }} />
+            <div style={{ fontSize: '1.1rem', fontFamily: 'monospace' }}>{loadingStatus || "Analyzing code..."}</div>
           </div>
         )}
 
@@ -146,6 +156,31 @@ const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAc
                 Reject
               </button>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'optimization' && (
+          <div className="optimization-section">
+            {isOptimizing ? (
+              <div className="loading-section">
+                <Loader2 size={24} className="spinner" />
+                <span>Analyzing Time & Space Complexity...</span>
+              </div>
+            ) : optimization ? (
+              <div className="suggestion-section">
+                <div className="suggestion-header">
+                  <span>Optimized Code & Analysis</span>
+                </div>
+                <div className="output-text" style={{ whiteSpace: 'pre-wrap', marginBottom: '1rem', color: '#a0a0a0' }}>
+                  {optimization.explanation}
+                </div>
+                <div className="suggested-code-container">
+                  {renderCodeWithHighlights(optimization.code)}
+                </div>
+              </div>
+            ) : (
+              <div className="output-text">No optimization analysis available. Run the code first.</div>
+            )}
           </div>
         )}
       </div>

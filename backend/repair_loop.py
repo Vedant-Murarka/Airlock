@@ -238,3 +238,113 @@ def run_repair_loop(code: str):
         "static_analysis": static_issues,
         "suggestions": suggest_improvements(current_code)
     }
+
+def run_repair_loop_stream(code: str):
+    attempts = []
+    original_code = code
+
+    code = quick_fix_typos(code)
+
+    syntax_error = detect_syntax_errors(code)
+    if syntax_error:
+        yield {"type": "status", "message": "Pre-execution syntax error detected"}
+        patch = get_patch(code, syntax_error, "syntax")
+        fixed_code = patch["patched_code"]
+        
+        attempts.append({
+            "attempt": 0,
+            "error": syntax_error,
+            "fixed_code": fixed_code,
+            "explanation": patch["explanation"],
+            "confidence": patch.get("confidence", 0)
+        })
+        code = fixed_code
+
+    current_code = code
+    seen_fixes = set()
+
+    static_issues = analyze_code(code)
+
+    for i in range(1, MAX_ATTEMPTS + 1):
+        yield {"type": "status", "message": f"\n--- Attempt {i} ---"}
+        yield {"type": "status", "message": "Running code in Sandbox..."}
+        
+        result = run_code_in_sandbox(current_code)
+        stderr = result["stderr"]
+
+        env_issues = detect_environment_issues(stderr)
+        if env_issues:
+            yield {"type": "result", "payload": {
+                "success": False,
+                "type": "environment",
+                "issues": env_issues,
+                "attempts": attempts,
+                "static_analysis": static_issues
+            }}
+            return
+
+        if result["success"] and stderr.strip() == "":
+            if not is_lazy_fix(current_code):
+                yield {"type": "result", "payload": {
+                    "success": True,
+                    "final_code": current_code,
+                    "output": result["stdout"],
+                    "attempts": attempts,
+                    "static_analysis": static_issues,
+                    "suggestions": suggest_improvements(current_code)
+                }}
+                return
+
+        error_type = classify_error(stderr)
+        yield {"type": "status", "message": f"Detected {error_type} error. Querying AI..."}
+
+        from fast_path import attempt_fast_path
+        fast_patch = attempt_fast_path(current_code, stderr, error_type)
+        
+        if fast_patch:
+            yield {"type": "status", "message": "Fast-Path triggered! Bypassing LLM."}
+            patch = fast_patch
+            new_code = patch["patched_code"]
+            confidence = patch.get("confidence", 0)
+        else:
+            from llm import get_patch_stream, extract_code_block
+            yield {"type": "status", "message": "AI is generating fix:\n"}
+            
+            full_response = ""
+            for token in get_patch_stream(current_code, stderr, error_type):
+                full_response += token
+                yield {"type": "token", "text": token}
+                
+            code_text = extract_code_block(full_response)
+            new_code = code_text if code_text else current_code
+            confidence = 8
+            patch = {"explanation": "Extracted from stream.", "patched_code": new_code, "confidence": confidence}
+            yield {"type": "status", "message": "\nAI finished generating."}
+
+        if is_same_code(current_code, new_code):
+            yield {"type": "status", "message": "⚠️ No change — skipping"}
+            continue
+
+        fix_signature = (error_type, new_code.strip())
+        if fix_signature in seen_fixes:
+            yield {"type": "status", "message": "⚠️ Repeated fix — skipping"}
+            continue
+
+        seen_fixes.add(fix_signature)
+        current_code = new_code
+
+        attempts.append({
+            "attempt": i,
+            "error": stderr,
+            "fixed_code": new_code,
+            "explanation": patch["explanation"],
+            "confidence": confidence
+        })
+
+    yield {"type": "result", "payload": {
+        "success": False,
+        "final_code": current_code,
+        "attempts": attempts,
+        "static_analysis": static_issues,
+        "suggestions": suggest_improvements(current_code)
+    }}

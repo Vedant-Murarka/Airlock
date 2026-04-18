@@ -56,6 +56,72 @@ def analyze_code():
         }), 500
 
 
+@app.route('/analyze_stream', methods=['POST'])
+def analyze_stream():
+    """
+    Server-Sent Events endpoint to stream the LLM repair loop live.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'code' not in data:
+            return jsonify({"error": "No code provided"}), 400
+            
+        code = data['code']
+        from repair_loop import run_repair_loop_stream
+        
+        def generate():
+            try:
+                for event in run_repair_loop_stream(code):
+                    import json
+                    yield f"data: {json.dumps(event)}\n\n"
+            except Exception as e:
+                import json
+                yield f"data: {json.dumps({'type': 'status', 'message': f'Error: {str(e)}'})}\n\n"
+                
+        from flask import Response
+        return Response(generate(), mimetype='text/event-stream')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/optimize', methods=['POST'])
+def optimize_code():
+    """
+    API endpoint to analyze time complexity and optimize Python code.
+    
+    Request body:
+    {
+        "code": "def foo(): ..."
+    }
+    """
+    try:
+        from llm import analyze_complexity
+        data = request.get_json()
+        
+        if not data or 'code' not in data:
+            return jsonify({
+                "success": False,
+                "error": "No code provided in request"
+            }), 400
+        
+        code = data['code']
+        
+        # Call the optimizer
+        result = analyze_complexity(code)
+        
+        return jsonify({
+            "success": True,
+            "optimized_code": result["optimized_code"],
+            "explanation": result["explanation"]
+        })
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""

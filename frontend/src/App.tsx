@@ -45,9 +45,12 @@ function App() {
   const [errors, setErrors] = useState('');
   const [showOutput, setShowOutput] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("Analyzing code...");
   const [suggestedCode, setSuggestedCode] = useState<string | null>(null);
   const [allErrors, setAllErrors] = useState<string[]>([]);
   const [allAttempts, setAllAttempts] = useState<Attempt[]>([]);
+  const [optimization, setOptimization] = useState<{code: string, explanation: string} | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   const activeFile = openFiles.find((file) => file.id === activeFileId);
 
@@ -105,39 +108,95 @@ function App() {
     }
 
     setIsLoading(true);
-    setOutput('Running analysis...');
+    setLoadingStatus("Connecting to sandbox...");
+    setOutput('');
     setErrors('');
     setSuggestedCode(null);
+    setOptimization(null);
     setShowOutput(true);
 
     try {
-      const response = await fetch('http://localhost:5000/analyze', {
+      const response = await fetch('http://localhost:5000/analyze_stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: activeFile.content }),
       });
 
-      const data: ApiResponse = await response.json();
+      if (!response.ok) throw new Error("Stream connection failed");
+      
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let finalData: ApiResponse | null = null;
+
+      setOutput('Starting repair loop...\n');
+
+      while (reader && !done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.substring(6);
+              try {
+                const event = JSON.parse(dataStr);
+                if (event.type === 'status') {
+                  setLoadingStatus(event.message.trim());
+                } else if (event.type === 'result') {
+                  finalData = event.payload;
+                }
+                // Intentionally ignoring event.type === 'token' to not pollute the terminal
+              } catch(e) {}
+            }
+          }
+        }
+      }
+
+      if (!finalData) throw new Error("No final result received from stream");
+      const data: ApiResponse = finalData;
 
       if (data.attempts && data.attempts.length > 0) {
         setAllAttempts(data.attempts);
         setAllErrors(data.attempts.map((a) => `Attempt ${a.attempt}:\n${a.error}`));
-        setOutput('Errors were detected and fixed. See the Errors and Fix tabs.');
+        setOutput('✅ Errors were detected and fixed. See the Errors and Fix tabs.');
         setErrors(data.attempts[0].error || data.error || 'Unknown error');
         setSuggestedCode(data.attempts[data.attempts.length - 1].fixed_code);
       } else if (data.success) {
         setAllAttempts([]);
         setAllErrors([]);
-        setOutput(data.output || 'Code executed successfully!');
+        setOutput(data.output || '✅ Code executed successfully!');
         setErrors('');
         setSuggestedCode(null);
       } else {
         setAllAttempts([]);
         setAllErrors([data.error || 'Unknown error']);
-        setOutput('Code has errors. No fix could be suggested.');
+        setOutput('❌ Code has errors. No fix could be suggested.');
         setErrors(data.error || 'Unknown error');
         setSuggestedCode(null);
       }
+      
+      // Run background optimization
+      const codeToOptimize = (data.attempts && data.attempts.length > 0) 
+        ? data.attempts[data.attempts.length - 1].fixed_code 
+        : activeFile.content;
+        
+      setIsOptimizing(true);
+      fetch('http://localhost:5000/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeToOptimize }),
+      })
+      .then(res => res.json())
+      .then(optData => {
+        if (optData.success) {
+           setOptimization({code: optData.optimized_code, explanation: optData.explanation});
+        }
+      })
+      .catch(err => console.error("Optimization failed:", err))
+      .finally(() => setIsOptimizing(false));
+
     } catch (error) {
       setOutput('Error connecting to backend');
       setErrors(String(error));
@@ -290,6 +349,9 @@ function App() {
                 onAccept={handleAcceptFix}
                 onReject={handleRejectFix}
                 isLoading={isLoading}
+                loadingStatus={loadingStatus}
+                optimization={optimization}
+                isOptimizing={isOptimizing}
               />
             </Panel>
           </>
