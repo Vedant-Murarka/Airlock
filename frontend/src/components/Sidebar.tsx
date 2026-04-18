@@ -3,9 +3,10 @@ import { Play, AlertTriangle, Download, Settings } from 'lucide-react';
 interface SidebarProps {
   onRun: () => void;
   onDownload: () => void;
+  onShowErrors: () => void; // New prop for showing the error panel
 }
 
-const Sidebar = ({ onRun, onDownload }: SidebarProps) => {
+const Sidebar = ({ onRun, onDownload, onShowErrors }: SidebarProps) => {
   return (
     <div className="sidebar">
       <div className="sidebar-buttons">
@@ -19,6 +20,7 @@ const Sidebar = ({ onRun, onDownload }: SidebarProps) => {
 
         <button
           className="sidebar-button"
+          onClick={onShowErrors} // Trigger the panel opening
           title="View Errors"
         >
           <AlertTriangle size={20} />
@@ -39,7 +41,6 @@ const Sidebar = ({ onRun, onDownload }: SidebarProps) => {
           <Download size={20} />
         </button>
       </div>
-
     </div>
   );
 };

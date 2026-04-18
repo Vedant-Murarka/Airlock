@@ -319,6 +319,40 @@
   flex-direction: column;
 }
 
+/* Container for tabs and the close button */
+.output-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--vscode-bg-secondary);
+  border-bottom: 1px solid var(--vscode-border);
+  padding-right: 4px; /* Space for the close button */
+}
+
+/* Ensure the tabs themselves don't have a bottom border now 
+   since the parent container handles it */
+.output-tabs {
+  border-bottom: none !important; 
+}
+
+/* The Close Button Style */
+.close-panel-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-text-secondary);
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-panel-btn:hover {
+  background-color: var(--vscode-bg-hover);
+  color: var(--vscode-error); /* High-contrast red on hover */
+}
+
 .output-tabs {
   display: flex;
   background-color: var(--vscode-bg-secondary);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { Moon, Sun} from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import Editor from './components/Editor.tsx';
 import Sidebar from './components/Sidebar.tsx';
 import OutputPanel from './components/OutputPanel.tsx';
@@ -33,7 +33,7 @@ interface ApiResponse {
 function App() {
   // --- State Management ---
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [showFlowchart, setShowFlowchart] = useState(false); // New state for Visualize
+  const [showFlowchart, setShowFlowchart] = useState(false);
   const [openFiles, setOpenFiles] = useState<FileItem[]>([]);
   const [activeFileId, setActiveFileId] = useState('');
   const [creatingFile, setCreatingFile] = useState(false);
@@ -170,7 +170,6 @@ function App() {
 
   return (
     <div className={`app ${isDarkMode ? 'dark' : 'light'}`}>
-      {/* Title Bar with Visualize & Theme toggle */}
       <div className="title-bar">
         <div className="title-logo">
           <img src="/logo.png" alt="Airlock logo" className="app-logo" />
@@ -183,7 +182,6 @@ function App() {
             onClick={() => setShowFlowchart(!showFlowchart)}
             title="Visualize Debugging Logic"
           >
-            
             <span>Visualize</span>
           </button>
 
@@ -200,7 +198,12 @@ function App() {
       <PanelGroup direction="horizontal" className="main-layout">
         {/* Left Sidebar */}
         <Panel defaultSize={10} minSize={8} maxSize={18}>
-          <Sidebar onRun={handleRun} onDownload={handleDownload} />
+          <Sidebar 
+            onRun={handleRun} 
+            onDownload={handleDownload} 
+            // This allows the sidebar to toggle the error panel open
+            onShowErrors={() => setShowOutput(true)} 
+          />
         </Panel>
 
         <PanelResizeHandle className="resize-handle" />
@@ -245,6 +248,11 @@ function App() {
                   className="new-file-input"
                   value={newFileName}
                   onChange={(event) => setNewFileName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      createFile();
+                    }
+                  }}
                   placeholder="Enter file name..."
                   autoFocus
                 />
@@ -290,13 +298,12 @@ function App() {
                 onAccept={handleAcceptFix}
                 onReject={handleRejectFix}
                 isLoading={isLoading}
+                onClose={() => setShowOutput(false)} 
               />
             </Panel>
           </>
         )}
       </PanelGroup>
-
-      
     </div>
   );
 }

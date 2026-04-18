@@ -10,50 +10,49 @@ interface OutputPanelProps {
   originalCode?: string | null;
   onAccept?: () => void;
   onReject?: () => void;
+  onClose: () => void; // Added onClose prop
   isLoading?: boolean;
 }
 
-// Function to compare lines and find changed ones
 const getChangedLines = (original: string, fixed: string): Set<number> => {
   const originalLines = original.split('\n');
   const fixedLines = fixed.split('\n');
   const changedLines = new Set<number>();
-  
   const maxLines = Math.max(originalLines.length, fixedLines.length);
   
   for (let i = 0; i < maxLines; i++) {
     const origLine = originalLines[i] || '';
     const fixedLine = fixedLines[i] || '';
-    
     if (origLine.trim() !== fixedLine.trim()) {
-      changedLines.add(i + 1); // 1-indexed line numbers
+      changedLines.add(i + 1);
     }
   }
-  
   return changedLines;
 };
 
-const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAccept, onReject, isLoading }: OutputPanelProps) => {
-  // Default to Fix tab if there was a fix, else Output
+const OutputPanel = ({ 
+  output, 
+  allErrors = [], 
+  suggestedCode, 
+  originalCode, 
+  onAccept, 
+  onReject, 
+  onClose, // Destructured
+  isLoading 
+}: OutputPanelProps) => {
   const [activeTab, setActiveTab] = useState<'output' | 'errors' | 'suggestion'>(suggestedCode ? 'suggestion' : 'output');
 
-  // Get changed lines if we have both original and suggested code
   const changedLines = (originalCode && suggestedCode) 
     ? getChangedLines(originalCode, suggestedCode) 
     : new Set<number>();
 
-  // Render code with line numbers and highlighting
   const renderCodeWithHighlights = (code: string) => {
     const lines = code.split('\n');
     return lines.map((line, index) => {
       const lineNumber = index + 1;
       const isChanged = changedLines.has(lineNumber);
-      
       return (
-        <div 
-          key={index} 
-          className={`code-line ${isChanged ? 'changed' : ''}`}
-        >
+        <div key={index} className={`code-line ${isChanged ? 'changed' : ''}`}>
           <span className="line-number">{lineNumber}</span>
           <span className="line-content">{line || ' '}</span>
         </div>
@@ -63,30 +62,42 @@ const OutputPanel = ({ output, allErrors = [], suggestedCode, originalCode, onAc
 
   return (
     <div className="output-panel">
-      <div className="output-tabs">
-        <button
-          className={`tab ${activeTab === 'output' ? 'active' : ''}`}
-          onClick={() => setActiveTab('output')}
-        >
-          <Terminal size={14} />
-          Output
-        </button>
-        <button
-          className={`tab ${activeTab === 'errors' ? 'active' : ''}`}
-          onClick={() => setActiveTab('errors')}
-        >
-          <AlertCircle size={14} />
-          Errors
-        </button>
-        {suggestedCode && (
+      {/* HEADER SECTION WITH TABS AND CLOSE BUTTON */}
+      <div className="output-panel-header">
+        <div className="output-tabs">
           <button
-            className={`tab ${activeTab === 'suggestion' ? 'active' : ''}`}
-            onClick={() => setActiveTab('suggestion')}
+            className={`tab ${activeTab === 'output' ? 'active' : ''}`}
+            onClick={() => setActiveTab('output')}
           >
-            <CheckCircle size={14} />
-            Fix
+            <Terminal size={14} />
+            Output
           </button>
-        )}
+          <button
+            className={`tab ${activeTab === 'errors' ? 'active' : ''}`}
+            onClick={() => setActiveTab('errors')}
+          >
+            <AlertCircle size={14} />
+            Errors
+          </button>
+          {suggestedCode && (
+            <button
+              className={`tab ${activeTab === 'suggestion' ? 'active' : ''}`}
+              onClick={() => setActiveTab('suggestion')}
+            >
+              <CheckCircle size={14} />
+              Fix
+            </button>
+          )}
+        </div>
+
+        {/* CLOSE ACTION */}
+        <button 
+          className="close-panel-btn" 
+          onClick={onClose} 
+          title="Close Panel"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       <div className="output-content">
